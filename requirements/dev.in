@@ -1,0 +1,11 @@
+google-cloud-aiplatform
+google-cloud-pipeline-components
+google-cloud-secret-manager 
+google-cloud-storage 
+google-cloud-bigquery
+kfp
+ipykernel
+scikit-learn
+pandas
+gcsfs
+python-dotenv
