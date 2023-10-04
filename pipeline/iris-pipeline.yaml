@@ -1,0 +1,314 @@
+# PIPELINE DEFINITION
+# Name: iris-pipeline
+# Description: Pipeline to process the Iris dataset
+components:
+  comp-predict-op:
+    executorLabel: exec-predict-op
+    inputDefinitions:
+      artifacts:
+        path_artifact:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        model_path:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-read-and-preprocess-data-op:
+    executorLabel: exec-read-and-preprocess-data-op
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-split-data-op:
+    executorLabel: exec-split-data-op
+    inputDefinitions:
+      parameters:
+        cleaned_data:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        Output:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-store-predictions-in-bigquery-op:
+    executorLabel: exec-store-predictions-in-bigquery-op
+    inputDefinitions:
+      parameters:
+        predictions_path:
+          parameterType: STRING
+  comp-train-model-op:
+    executorLabel: exec-train-model-op
+    inputDefinitions:
+      artifacts:
+        path_artifact:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-predict-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - predict_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.3.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef predict_op(model_path: str, path_artifact: dsl.Artifact) -> str:\n\
+          \    model = joblib.load(model_path)\n    test_data = path_artifact.test_path\n\
+          \    df = pd.read_csv(test_data)\n    X_test = df.drop('species', axis=1)\n\
+          \    predictions = model.predict(X_test)    \n    predictions_path = f\"\
+          {GCS_BUCKET}/predictions_pipeline.csv\"\n    df['predictions'] = predictions\n\
+          \    df.to_csv(predictions_path, index=False)\n    return predictions_path\n\
+          \n"
+        image: python:3.7
+    exec-read-and-preprocess-data-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - read_and_preprocess_data_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.3.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef read_and_preprocess_data_op() -> str:\n    data = aiplatform.TabularDataset.create(\n\
+          \        display_name=\"iris_pipeline\",\n        gcs_source=f\"{GCS_BUCKET}/iris.csv\"\
+          ,\n    )    \n    df = pd.read_csv(data)\n    df = df.dropna()    \n   \
+          \ cleaned_data_path = f\"{GCS_BUCKET}/cleaned_data_pipeline.csv\"\n    df.to_csv(cleaned_data_path,\
+          \ index=False)\n    return cleaned_data_path\n\n"
+        image: python:3.7
+    exec-split-data-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - split_data_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.3.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef split_data_op(cleaned_data: str) -> dsl.Artifact:\n    df = pd.read_csv(cleaned_data)\n\
+          \    X = df.drop('species', axis=1)\n    y = df['species']\n    X_train,\
+          \ X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\
+          \    train_data_path = f\"{GCS_BUCKET}/train_iris.csv\"\n    test_data_path\
+          \ = f\"{GCS_BUCKET}/test_iris.csv\"\n    X_train.to_csv(train_data_path,\
+          \ index=False)\n    X_test.to_csv(test_data_path, index=False)\n\n    output_artifact\
+          \ = dsl.Artifact(\n        name=\"my_output_artifact\",\n        description=\"\
+          Description of the output artifact\",\n        schema_title=\"my_artifact_schema\"\
+          ,\n        schema_version=\"v1.0\"\n    )\n    output_artifact.train_path=train_data_path\n\
+          \    output_artifact.test_path=test_data_path\n    return output_artifact\n\
+          \    # return train_data_path, test_data_path\n\n"
+        image: python:3.7
+    exec-store-predictions-in-bigquery-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - store_predictions_in_bigquery_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.3.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef store_predictions_in_bigquery_op(predictions_path: str):    \n\
+          \    bq_client = bigquery.Client.from_service_account_info(secret_info)\n\
+          \    bucket = storage_client.get_bucket(BUCKET_NAME) # mlops-prueba , ->\
+          \ mlops-400610_bucket\n\n    # Consulta BigQuery las predicciones\n    query\
+          \ = f\"SELECT * FROM {BQ_DATASET}.{BQ_TABLE}\"\n    query_job = bq_client.query(query)\n\
+          \    results = query_job.result()\n    for row in results:\n        print(\"\
+          Row:\", row)\n\n    # Carga los datos desde el archivo CSV a BigQuery\n\
+          \    dataset_ref = bq_client.dataset(BQ_DATASET)\n    table_ref = dataset_ref.table(BQ_TABLE)\n\
+          \    job_config = bigquery.LoadJobConfig()\n    job_config.autodetect =\
+          \ True  # Detecta autom\xE1ticamente el esquema\n\n    with open(predictions_path,\
+          \ \"rb\") as source_file:\n        job = bq_client.load_table_from_file(source_file,\
+          \ table_ref, job_config=job_config)\n    job.result() \n    return f\"Datos\
+          \ almacenados en BigQuery: {PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}\"\n\n"
+        image: python:3.7
+    exec-train-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.3.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model_op(path_artifact: dsl.Artifact) -> str:    \n   \
+          \ train_data = path_artifact.train_path\n    df = pd.read_csv(train_data)\n\
+          \    X = df.drop('species', axis=1)\n    y = df['species']\n    model =\
+          \ RandomForestClassifier()\n    model.fit(X, y)\n    model_path = f\"{GCS_BUCKET}/trained_model_pipeline.pkl\"\
+          \n    joblib.dump(model, model_path)\n    return model_path\n\n"
+        image: python:3.7
+pipelineInfo:
+  description: Pipeline to process the Iris dataset
+  name: iris-pipeline
+root:
+  dag:
+    tasks:
+      predict-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-predict-op
+        dependentTasks:
+        - split-data-op
+        - train-model-op
+        inputs:
+          artifacts:
+            path_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: Output
+                producerTask: split-data-op
+          parameters:
+            model_path:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: train-model-op
+        taskInfo:
+          name: predict-op
+      read-and-preprocess-data-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-read-and-preprocess-data-op
+        taskInfo:
+          name: read-and-preprocess-data-op
+      split-data-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-split-data-op
+        dependentTasks:
+        - read-and-preprocess-data-op
+        inputs:
+          parameters:
+            cleaned_data:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: read-and-preprocess-data-op
+        taskInfo:
+          name: split-data-op
+      store-predictions-in-bigquery-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-store-predictions-in-bigquery-op
+        dependentTasks:
+        - predict-op
+        inputs:
+          parameters:
+            predictions_path:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: predict-op
+        taskInfo:
+          name: store-predictions-in-bigquery-op
+      train-model-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model-op
+        dependentTasks:
+        - split-data-op
+        inputs:
+          artifacts:
+            path_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: Output
+                producerTask: split-data-op
+        taskInfo:
+          name: train-model-op
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.3.0

@@ -1,3 +1,4 @@
+-c prod.txt
 google-cloud-aiplatform
 google-cloud-pipeline-components
 google-cloud-secret-manager 
@@ -9,3 +10,5 @@ scikit-learn
 pandas
 gcsfs
 python-dotenv
+# matplotlib
+# seaborn

@@ -4,3 +4,4 @@ help.txt
 /infra/.terraform*
 /infra/terraform*
 /pipeline/.env
+/pipeline/traincontainer/trainer/.env
